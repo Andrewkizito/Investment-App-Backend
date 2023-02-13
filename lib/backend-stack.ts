@@ -4,6 +4,7 @@ import * as amplify from "aws-cdk-lib/aws-amplify";
 import * as cognito from "aws-cdk-lib/aws-cognito";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as iam from "aws-cdk-lib/aws-iam";
 import path = require("path");
 
 export class BackendStack extends cdk.Stack {
@@ -32,9 +33,43 @@ export class BackendStack extends cdk.Stack {
       timeToLiveAttribute: "expiry",
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
+
     /*-----------------------------------------------------------------*/
     /*--------------------------Cognito Setup--------------------------*/
     /*-----------------------------------------------------------------*/
+    const feroxPreSignUp = new lambda.Function(this, "PreSignUp-Trigger", {
+      functionName: "feroxPreSignUp",
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "..", "app/functions/auth/preSignUp")
+      ),
+      runtime: lambda.Runtime.NODEJS_16_X,
+      architecture: lambda.Architecture.ARM_64,
+    });
+
+    const feroxConfirmAccount = new lambda.Function(
+      this,
+      "Confirm-Account-Trigger",
+      {
+        functionName: "feroxConfirmSignUp",
+        handler: "index.handler",
+        code: lambda.Code.fromAsset(
+          path.join(__dirname, "..", "app/functions/auth/postSignUp")
+        ),
+        runtime: lambda.Runtime.NODEJS_16_X,
+        architecture: lambda.Architecture.ARM_64,
+        environment: {
+          TABLE_NAME: feroxDatabase.tableName,
+        },
+      }
+    );
+    feroxConfirmAccount.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["dynamodb:PutItem"],
+        resources: [feroxDatabase.tableArn],
+      })
+    );
     const feroxUserPool = new cognito.UserPool(this, "Ferox-Auth-UserPool", {
       userPoolName: "Ferox",
       passwordPolicy: {
@@ -57,18 +92,8 @@ export class BackendStack extends cdk.Stack {
         sms: true,
       },
       lambdaTriggers: {
-        postConfirmation: new lambda.Function(this, "Confirm-Account-Trigger", {
-          functionName: "feroxConfirmSignUp",
-          handler: "onSignUp.handler",
-          code: lambda.Code.fromAsset(
-            path.join(__dirname, "..", "app", "functions", "auth")
-          ),
-          runtime: lambda.Runtime.NODEJS_18_X,
-          architecture: lambda.Architecture.ARM_64,
-          environment: {
-            TABLE_NAME: feroxDatabase.tableName,
-          },
-        }),
+        postConfirmation: feroxConfirmAccount,
+        preSignUp: feroxPreSignUp,
       },
     });
     feroxUserPool.addClient("Ferox-Auth-UserPoolClient", {
