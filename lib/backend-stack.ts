@@ -32,5 +32,48 @@ export class BackendStack extends cdk.Stack {
       timeToLiveAttribute: "expiry",
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
     });
+    /*-----------------------------------------------------------------*/
+    /*--------------------------Cognito Setup--------------------------*/
+    /*-----------------------------------------------------------------*/
+    const feroxUserPool = new cognito.UserPool(this, "Ferox-Auth-UserPool", {
+      userPoolName: "Ferox",
+      passwordPolicy: {
+        minLength: 8,
+        requireDigits: true,
+        requireSymbols: true,
+        requireUppercase: true,
+        requireLowercase: true,
+      },
+      selfSignUpEnabled: true,
+      userVerification: {
+        emailSubject: "Confirm Your Account",
+        emailBody:
+          "Welcome to Ferox, let's tart your investment jpourney by confirming your account.Your verification code is {####}",
+      },
+      accountRecovery: 0,
+      mfa: cognito.Mfa.OPTIONAL,
+      mfaSecondFactor: {
+        otp: true,
+        sms: true,
+      },
+      lambdaTriggers: {
+        postConfirmation: new lambda.Function(this, "Confirm-Account-Trigger", {
+          functionName: "feroxConfirmSignUp",
+          handler: "onSignUp.handler",
+          code: lambda.Code.fromAsset(
+            path.join(__dirname, "..", "app", "functions", "auth")
+          ),
+          runtime: lambda.Runtime.NODEJS_18_X,
+          architecture: lambda.Architecture.ARM_64,
+          environment: {
+            TABLE_NAME: feroxDatabase.tableName,
+          },
+        }),
+      },
+    });
+    feroxUserPool.addClient("Ferox-Auth-UserPoolClient", {
+      idTokenValidity: cdk.Duration.hours(1),
+      refreshTokenValidity: cdk.Duration.hours(6),
+    });
   }
 }
