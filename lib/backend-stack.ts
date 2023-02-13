@@ -16,5 +16,21 @@ export class BackendStack extends cdk.Stack {
     const feroxAmplifyApp = new amplify.CfnApp(this, "Ferox-Amplify-App", {
       name: "Ferox-Investment",
     });
+    /*------------------------------------------------------------------*/
+    /*--------------------------Database Setup--------------------------*/
+    /*------------------------------------------------------------------*/
+    const feroxDatabase = new dynamodb.Table(this, "Ferox-Database", {
+      tableName: "Ferox-Dev",
+      partitionKey: {
+        name: "PK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: "SK",
+        type: dynamodb.AttributeType.STRING,
+      },
+      timeToLiveAttribute: "expiry",
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+    });
   }
 }
